@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<script language="javascript">
+
+		var xmlDoc; //At the moment this script is limited to a single xml doc.
+		
+		function populateVoters()
+		{
+
+			var xmlhttp; //I think declaring them here will limit the scope. (I hope?)
+
+			if (window.XMLHttpRequest)
+				{// code for IE7+, Firefox, Chrome, Opera, Safari
+					xmlhttp=new XMLHttpRequest();
+				}
+			else
+				{// code for IE6, IE5
+					xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
+				}
+
+			xmlhttp.open("GET","./testXML/combined.xml",false); //synchronous at the moment.
+			xmlhttp.send();
+
+			if (xmlhttp.status === 200 || xmlhttp.status === 304) 
+			{
+				xmlDoc=xmlhttp.responseXML;
+
+				var indiv = xmlDoc.getElementsByTagName("individual-votes")[0];
+
+				var x=indiv.getElementsByTagName("member");
+
+				var selectBox = document.getElementById("voterList");
+				//selectBox.multiple = true;
+
+				for(var i = 0; i < x.length; i++){
+					var optn = document.createElement("OPTION");
+					optn.text = x[i].getAttribute('name-ch') + "---" + x[i].getAttribute('name-en');
+					optn.value = x[i].getAttribute('name-en');
+					selectBox.options.add(optn);
+					//x[i].getAttribute('name-ch')
+					//x[i].getAttribute('name-en')
+				}
+			} else 
+			{
+				console.log("Error! Status = " + xmlhttp.status);
+			}
+		}
+		function repopulateTable()
+		{
+			var meetings = xmlDoc.getElementsByTagName("meeting");
+
+			var voterSelector = document.getElementById("voterList");
+
+			var table = document.createElement("TABLE");
+			// Create an empty <tr> element and add it to the 1st position of the table:
+			var row = table.insertRow(0);
+
+			// Insert new cells (<td> elements) at the 1st and 2nd position of the "new" <tr> element:
+			var cell1 = row.insertCell(0);
+			var cell2 = row.insertCell(1);
+
+			var currentRow = 1;
+
+			// Add some text to the new cells:
+			cell1.innerHTML = "";
+			cell2.innerHTML = voterSelector.options[voterSelector.selectedIndex].text;
+
+			for(var i = 0; i < meetings.length; i++){
+				var votes = meetings[i].childNodes;
+
+				for(var o = 0; o < votes.length; o++){
+					if(votes[o].tagName != "vote") continue;
+					var newRow = table.insertRow(currentRow);
+					var motionNameCell = newRow.insertCell(0);
+					var voteResultCell = newRow.insertCell(1);
+					currentRow++;
+					//alert("o = " + o + "." + "Tagname = " + votes[o].tagName);
+					//alert("motion = " + )
+
+					voteResultCell.innerHTML = "Member not found";
+
+					motionNameCell.innerHTML = votes[o].getElementsByTagName("motion-en")[0].innerHTML;
+					var indivVotes = votes[o].getElementsByTagName("individual-votes")[0];
+					var members = indivVotes.getElementsByTagName("member");
+					for(var p = 0; p < members.length; p++){
+						if(members[p].getAttribute('name-en') == voterSelector.value){
+							voteResultCell.innerHTML = members[p].getElementsByTagName("vote")[0].innerHTML;
+							break; 
+						}
+					}
+					
+				}
+
+			
+			}
+
+			document.body.appendChild(table);
+		}
+	</script>
+</head>
+<body onload="populateVoters()">
+
+<select id="voterList" onchange="repopulateTable()">
+  <option value="none">Select voter 1</option>
+</select>
+<button type="button">Add</button>
+  
+</body>
+</html>
