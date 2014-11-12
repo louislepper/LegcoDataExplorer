@@ -4,7 +4,9 @@
 	<script language="javascript">
 
 		var xmlDoc; //At the moment this script is limited to a single xml doc.
-		
+		var mainTable;
+		var numMembers = 0;
+
 		function populateVoters()
 		{
 
@@ -41,70 +43,91 @@
 					//x[i].getAttribute('name-ch')
 					//x[i].getAttribute('name-en')
 				}
+
+				mainTable = document.createElement("TABLE");
+				// Create an empty <tr> element and add it to the 1st position of the table:
+				var row = mainTable.insertRow(0);
+				var currentRow = 1;
+
+				var cell1 = row.insertCell(0);
+				cell1.innerHTML = "Motion/Member:";
+				//Now make a new row for each motion:
+				var meetings = xmlDoc.getElementsByTagName("meeting");
+				for(var i = 0; i < meetings.length; i++)
+				{
+					var votes = meetings[i].childNodes;
+					for(var o = 0; o < votes.length; o++){
+						if(votes[o].tagName != "vote") continue;
+						var newMotionRow = mainTable.insertRow(currentRow);
+						var motionNameCell = newMotionRow.insertCell(0);
+						motionNameCell.innerHTML = votes[o].getElementsByTagName("motion-en")[0].innerHTML;
+						currentRow++;
+					}
+
+				}
+
 			} else 
 			{
 				console.log("Error! Status = " + xmlhttp.status);
 			}
+			//Add the main mainTable to the page
+			document.body.appendChild(mainTable);
 		}
-		function repopulateTable()
+		function addMember()
 		{
-			var meetings = xmlDoc.getElementsByTagName("meeting");
 
 			var voterSelector = document.getElementById("voterList");
 
-			var table = document.createElement("TABLE");
-			// Create an empty <tr> element and add it to the 1st position of the table:
-			var row = table.insertRow(0);
+			var meetings = xmlDoc.getElementsByTagName("meeting");
 
-			// Insert new cells (<td> elements) at the 1st and 2nd position of the "new" <tr> element:
-			var cell1 = row.insertCell(0);
-			var cell2 = row.insertCell(1);
+			var memberNameEN = voterSelector.value;
 
-			var currentRow = 1;
+			var memberNameCell = mainTable.rows[0].insertCell(numMembers+1);
 
-			// Add some text to the new cells:
-			cell1.innerHTML = "";
-			cell2.innerHTML = voterSelector.options[voterSelector.selectedIndex].text;
+			memberNameCell.innerHTML = voterSelector.options[voterSelector.selectedIndex].text;
 
-			for(var i = 0; i < meetings.length; i++){
+			var currentMotion = 1;
+			for(var i = 0; i < meetings.length; i++)
+			{
 				var votes = meetings[i].childNodes;
-
 				for(var o = 0; o < votes.length; o++){
 					if(votes[o].tagName != "vote") continue;
-					var newRow = table.insertRow(currentRow);
-					var motionNameCell = newRow.insertCell(0);
-					var voteResultCell = newRow.insertCell(1);
-					currentRow++;
-					//alert("o = " + o + "." + "Tagname = " + votes[o].tagName);
-					//alert("motion = " + )
 
-					voteResultCell.innerHTML = "Member not found";
+					//Double check that the motion is correct.
+					if(mainTable.rows[currentMotion].cells[0].innerHTML != votes[o].getElementsByTagName("motion-en")[0].innerHTML){
+						alert("ERROR. Everything is wrong. Disregard all results...");
+					}
 
-					motionNameCell.innerHTML = votes[o].getElementsByTagName("motion-en")[0].innerHTML;
+					var voteResultCell = mainTable.rows[currentMotion].insertCell(numMembers + 1);
+
+					voteResultCell.innerHTML = "Member not found.";
+
 					var indivVotes = votes[o].getElementsByTagName("individual-votes")[0];
 					var members = indivVotes.getElementsByTagName("member");
-					for(var p = 0; p < members.length; p++){
-						if(members[p].getAttribute('name-en') == voterSelector.value){
+					for(var p = 0; p < members.length; p++)
+					{
+						if(members[p].getAttribute('name-en') == voterSelector.value)
+						{
 							voteResultCell.innerHTML = members[p].getElementsByTagName("vote")[0].innerHTML;
 							break; 
 						}
 					}
-					
+
+
+					currentMotion++;
 				}
 
-			
 			}
-
-			document.body.appendChild(table);
+			numMembers++;
 		}
 	</script>
 </head>
 <body onload="populateVoters()">
 
-<select id="voterList" onchange="repopulateTable()">
+<select id="voterList">
   <option value="none">Select voter 1</option>
 </select>
-<button type="button">Add</button>
+<button type="button" onclick="addMember()">Add</button>
   
 </body>
 </html>
