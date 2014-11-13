@@ -5,15 +5,26 @@
 	<script src="./libraries/jquery-1.11.1.js"></script>
 	<script src="./libraries/jquery-ui-1.11.2/jquery-ui.js"></script>
 
+	<script src="./misc.js"></script>
+
 	<script language="javascript">
 
+		//Global variables.
 		var xmlDoc; //At the moment this script is limited to a single xml doc.
 		var mainTable;
 		var numMembers = 0;
+		var startDateObj;
+		var endDateObj;
 
-		function populateVoters()
+		function startFunction(){
+			pullXML();
+			initCalendar();
+			updateGlobalDateObjects();
+		}
+
+
+		function pullXML()
 		{
-
 			var xmlhttp; //I think declaring them here will limit the scope. (I hope?)
 
 			if (window.XMLHttpRequest)
@@ -25,58 +36,119 @@
 					xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
 				}
 
-			xmlhttp.open("GET","./XML/combined.xml",false); //synchronous at the moment.
-			xmlhttp.send();
-
-			if (xmlhttp.status === 200 || xmlhttp.status === 304) 
-			{
-				xmlDoc=xmlhttp.responseXML;
-
-				var indiv = xmlDoc.getElementsByTagName("individual-votes")[0];
-
-				var x=indiv.getElementsByTagName("member");
-
-				var selectBox = document.getElementById("voterList");
-				//selectBox.multiple = true;
-
-				for(var i = 0; i < x.length; i++){
-					var optn = document.createElement("OPTION");
-					optn.text = x[i].getAttribute('name-ch') + "---" + x[i].getAttribute('name-en');
-					optn.value = x[i].getAttribute('name-en');
-					selectBox.options.add(optn);
-					//x[i].getAttribute('name-ch')
-					//x[i].getAttribute('name-en')
-				}
-
-				mainTable = document.createElement("TABLE");
-				// Create an empty <tr> element and add it to the 1st position of the table:
-				var row = mainTable.insertRow(0);
-				var currentRow = 1;
-
-				var cell1 = row.insertCell(0);
-				cell1.innerHTML = "Motion/Member:";
-				//Now make a new row for each motion:
-				var meetings = xmlDoc.getElementsByTagName("meeting");
-				for(var i = 0; i < meetings.length; i++)
-				{
-					var votes = meetings[i].childNodes;
-					for(var o = 0; o < votes.length; o++){
-						if(votes[o].tagName != "vote") continue;
-						var newMotionRow = mainTable.insertRow(currentRow);
-						var motionNameCell = newMotionRow.insertCell(0);
-						motionNameCell.innerHTML = votes[o].getElementsByTagName("motion-en")[0].innerHTML;
-						currentRow++;
+				xmlhttp.onreadystatechange=function()
+					{
+						if (xmlhttp.readyState==4)
+						{
+							if(xmlhttp.status==200 || xmlhttp.status==304) {
+								xmlDoc=xmlhttp.responseXML;
+								xmlReady();
+							} else {
+								xmlFail();
+							}
+						} 
 					}
 
+			xmlhttp.open("GET","./combined.xml",true);
+			xmlhttp.send();			
+		}
+
+		function xmlReady() 
+		{
+			populateSelectBox();
+			makeTable();
+			enablePage();
+		}
+
+		function xmlFail()
+		{
+			alert("XML not found.");
+		}
+
+
+		function populateSelectBox()
+		{
+			var indiv = xmlDoc.getElementsByTagName("individual-votes")[0];
+
+			var x=indiv.getElementsByTagName("member");
+
+			var selectBox = document.getElementById("voterList");
+			//selectBox.multiple = true;
+
+			for(var i = 0; i < x.length; i++){
+				var optn = document.createElement("OPTION");
+				optn.text = x[i].getAttribute('name-ch') + " --- " + x[i].getAttribute('name-en');
+				optn.value = x[i].getAttribute('name-en');
+				selectBox.options.add(optn);
+			}
+		}
+
+		function dateChange()
+		{
+			updateGlobalDateObjects();
+			makeTable();
+			//Need to repopulate member's results.
+		}
+
+		function updateGlobalDateObjects()
+		{
+			var startDate = document.getElementById("startDate").value.split("/");
+
+			startDateObj = new Date(startDate[2] + "/" + startDate[1] + "/" + startDate[0]);
+
+			var endDate = document.getElementById("endDate").value.split("/");
+
+			endDateObj = new Date(endDate[2] + "/" + endDate[1] + "/" + endDate[0]);
+		}
+
+		/*Fill the list of motions out */
+		function makeTable()
+		{
+			mainTable = document.createElement("TABLE");
+
+			mainTable.id = "mainTable";
+			
+			// Create an empty <tr> element and add it to the 1st position of the table:
+			var row = mainTable.insertRow(0);
+			var currentRow = 1;
+
+			var cell1 = row.insertCell(0);
+			cell1.innerHTML = "Motion/Member:";
+			//Now make a new row for each motion:
+			var meetings = xmlDoc.getElementsByTagName("meeting");
+
+			for(var i = 0; i < meetings.length; i++)
+			{
+				var mDate = meetings[i].getAttribute('start-date').split("/");
+				var mDateObj = new Date(mDate[2] + "/" + mDate[1] + "/" + mDate[0]);
+
+				if(!(startDateObj.getTime() <= mDateObj.getTime() && mDateObj.getTime() <= endDateObj.getTime())) continue;
+
+				var votes = meetings[i].childNodes;
+				for(var o = 0; o < votes.length; o++){
+
+					if(votes[o].tagName != "vote") continue; //For some reason there are some text nodes here.
+
+					var newMotionRow = mainTable.insertRow(currentRow);
+					var motionNameCell = newMotionRow.insertCell(0);
+					motionNameCell.innerHTML = votes[o].getElementsByTagName("motion-en")[0].innerHTML;
+					currentRow++;
 				}
 
-			} else 
-			{
-				console.log("Error! Status = " + xmlhttp.status);
 			}
+			//Get current table:
+			var oldTable = document.getElementById("mainTable");
+
 			//Add the main mainTable to the page
-			document.body.appendChild(mainTable);
+			document.body.replaceChild(mainTable, oldTable);
 		}
+
+		function enablePage(){
+			document.getElementById("addMemberButton").disabled = "";
+			document.getElementById("startDate").disabled = "";
+			document.getElementById("endDate").disabled = "";
+		}
+
 		function addMember()
 		{
 
@@ -91,8 +163,14 @@
 			memberNameCell.innerHTML = voterSelector.options[voterSelector.selectedIndex].text;
 
 			var currentMotion = 1;
+
 			for(var i = 0; i < meetings.length; i++)
 			{
+				var mDate = meetings[i].getAttribute('start-date').split("/");
+				var mDateObj = new Date(mDate[2] + "/" + mDate[1] + "/" + mDate[0]);
+
+				if(!(startDateObj.getTime() <= mDateObj.getTime() && mDateObj.getTime() <= endDateObj.getTime())) continue;
+
 				var votes = meetings[i].childNodes;
 				for(var o = 0; o < votes.length; o++){
 					if(votes[o].tagName != "vote") continue;
@@ -126,12 +204,24 @@
 		}
 	</script>
 </head>
-<body onload="populateVoters()">
-
-<select id="voterList">
-  <option value="none">Select voter 1</option>
-</select>
-<button type="button" onclick="addMember()">Add</button>
-  
+<body onload="startFunction()">
+<div id="controls">
+	<select id="voterList">
+	  <option value="none">Select voter 1</option>
+	</select>
+	<button id="addMemberButton" type="button" onclick="addMember()" disabled="disabled">Add</button>
+	<div>
+		<h4>Only show motions between:</h4>
+		<div>
+			<p>Start date</p>
+			<input type="text" name="startDate" id="startDate" disabled="disabled" onchange="dateChange()">
+		</div>
+		<div>
+			<p>End date</p>
+			<input type="text" name="endDate" id="endDate" disabled="disabled" onchange="dateChange()">
+		</div>
+	 </div>
+</div>
+<table id="mainTable"></table>
 </body>
 </html>
