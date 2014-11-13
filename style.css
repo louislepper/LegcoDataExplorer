@@ -1,0 +1,39 @@
+#controls {
+/*float:top;*/
+}
+
+#mselector {
+	float:left;
+	width:50%;
+}
+#dates {
+	/*float:left;*/
+	float: left;
+	width: 50%
+}
+
+#dateDivOne {
+	float: left;
+	width:50%;
+}
+
+#dateDivTwo {
+	float: left;
+	width:50%;
+}
+
+p {
+	margin: auto;
+}
+h4 {
+	margin: auto;
+}
+
+#mainTable {
+	float:bottom;
+}
+
+.control {
+	/*display:block;*/
+
+}

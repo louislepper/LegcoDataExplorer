@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+	<link rel ="stylesheet" href="./style.css">
 	<link rel="stylesheet" href="./libraries/jquery-ui-1.11.2/jquery-ui.min.css">
 	<script src="./libraries/jquery-1.11.1.js"></script>
 	<script src="./libraries/jquery-ui-1.11.2/jquery-ui.js"></script>
@@ -11,17 +12,19 @@
 </head>
 <body onload="startFunction()">
 <div id="controls">
-	<select id="voterList">
-	  <option value="none">Select voter 1</option>
-	</select>
-	<button id="addMemberButton" type="button" onclick="addMember()" disabled="disabled">Add</button>
-	<div>
+	<div id="mselector" class="control">
+		<select id="voterList" class="control">
+		  <option value="none">Select voter 1</option>
+		</select>
+		<button id="addMemberButton" type="button" onclick="addMember()" disabled="disabled">Add</button>
+	</div>
+	<div id="dates" class="control">
 		<h4>Only show motions between:</h4>
-		<div>
+		<div id="dateDivOne" class="control">
 			<p>Start date</p>
 			<input type="text" name="startDate" id="startDate" disabled="disabled" onchange="dateChange()">
 		</div>
-		<div>
+		<div id="dateDivTwo" class="control">
 			<p>End date</p>
 			<input type="text" name="endDate" id="endDate" disabled="disabled" onchange="dateChange()">
 		</div>
