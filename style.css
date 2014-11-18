@@ -4,12 +4,12 @@
 
 #mselector {
 	float:left;
-	width:50%;
+	width:70%;
 }
 #dates {
 	/*float:left;*/
 	float: left;
-	width: 50%
+	width: 30%
 }
 
 #dateDivOne {
@@ -20,6 +20,23 @@
 #dateDivTwo {
 	float: left;
 	width:50%;
+}
+
+#memberDialogButton {
+	float: left;
+	/*width: 20%;*/
+}
+.memberDialogName {
+	float: left;
+	width: 280px;
+	/*display: inline-;*/
+}
+#memberDialog {
+	/*display: inline-block;*/
+}
+#memberSearch {
+	float: left;
+	/*width: 80%;*/
 }
 
 p {

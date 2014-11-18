@@ -1,4 +1,10 @@
-function initCalendar(){
+//Run in head
+$(function() {
+	$( "#memberDialog" ).dialog({ autoOpen: false, width:900 });
+});
+
+function initCalendar()
+{
 	$( "#startDate" ).datepicker({ dateFormat: "dd/mm/yy" });
 	$( "#endDate" ).datepicker({ dateFormat: "dd/mm/yy" });
 

@@ -1,9 +1,15 @@
 //Global variables.
 var xmlDoc; //At the moment this script is limited to a single xml doc.
 var mainTable;
-var numMembers = 0;
+var numTableMembers = 0;
 var startDateObj;
 var endDateObj;
+var memberCount = 0;
+
+var currentlyDisplayedMembers = [];
+
+var memberListEN = [];
+var memberListCN = [];
 
 function startFunction(){
 	pullXML();
@@ -36,15 +42,21 @@ function pullXML()
 						xmlFail();
 					}
 				} 
-			}
+			};
 
 	xmlhttp.open("GET","./combined.xml",true);
 	xmlhttp.send();			
 }
+function memberDialogOpen()
+{
+	$( "#memberDialog" ).dialog( "open" );
+}
 
 function xmlReady() 
 {
+	getMembers();
 	populateSelectBox();
+	populateMemberDialog();
 	makeTable();
 	enablePage();
 }
@@ -54,28 +66,124 @@ function xmlFail()
 	alert("XML not found.");
 }
 
+function getMembers()
+{
+  var i;
+	memberCount = 0;
+	var x=xmlDoc.getElementsByTagName("member");
+
+	var dedupedList = {};
+
+	for(i = 0; i < x.length; i++){
+		if (typeof dedupedList[x[i].getAttribute('name-en')] == 'undefined')
+		{
+			dedupedList[x[i].getAttribute('name-en')] = 1;
+			memberListEN[memberCount] = x[i].getAttribute('name-en');
+			memberListCN[memberCount] = x[i].getAttribute('name-ch');
+			memberCount++;
+
+		}
+	}
+
+	if ( window.console && window.console.log ) {
+		for(i = 0; i < memberCount; i++) {
+			console.log("Member " + (i+1) + ": " + memberListEN[i] + " --- " + memberListCN[i]);
+		}
+	}
+
+}
 
 function populateSelectBox()
 {
-	var indiv = xmlDoc.getElementsByTagName("individual-votes")[0];
 
-	var x=indiv.getElementsByTagName("member");
+	var availableMembers = memberListEN.concat(memberListCN);
 
-	var selectBox = document.getElementById("voterList");
-	//selectBox.multiple = true;
+	$( "#voterList" ).autocomplete({
+		source: availableMembers
+	});
 
-	for(var i = 0; i < x.length; i++){
-		var optn = document.createElement("OPTION");
-		optn.text = x[i].getAttribute('name-ch') + " --- " + x[i].getAttribute('name-en');
-		optn.value = x[i].getAttribute('name-en');
-		selectBox.options.add(optn);
+	$( "#voterList" ).autocomplete({
+		select: function( event, ui ) {
+			$('#voterList').val(ui.item.value);
+			var v = nameToNumAndEN(ui.item.value);
+			if(v != -1) {addMember(v, false);}
+			else {
+				v = nameToNumAndCN(ui.item.value);
+				if(v != -1) {addMember(v, true);}
+				else {alert("This should never happen.");}
+			}
+			//Clear the voter selector
+			//$('#voterList').val("");
+		}
+	});
+	$( "#voterList" ).autocomplete({
+		close: function( event, ui ) {
+			//Clear the voter selector
+			$('#voterList').val("");
+		}
+	});
+
+}
+
+function nameToNumAndEN(name){
+	var i;
+	for(i = 0; i < memberListEN.length; i++){
+		if(memberListEN[i] === name) {return i;}
 	}
+	// for(i = 0; i < memberListCN.length; i++){
+	// 	if(memberListCN[i] === name) {return i;}
+	// }
+	return -1;
+}
+
+function nameToNumAndCN(name){
+	var i;
+	// for(i = 0; i < memberListEN.length; i++){
+	// 	if(memberListEN[i] === name) {return i;}
+	// }
+	for(i = 0; i < memberListCN.length; i++){
+		if(memberListCN[i] === name) {return i;}
+	}
+	return -1;
+}
+
+function populateMemberDialog () 
+{
+	var memberDialog = document.getElementById("memberDialog");
+	for(var i = 0; i < memberCount; i++){
+		var child = document.createElement("DIV");
+		var checkboxO = document.createElement("INPUT");
+		checkboxO.id = i;
+		var name = document.createElement("LABEL");
+		name.innerHTML = memberListEN[i] + " --- " + memberListCN[i];
+		checkboxO.type = "checkbox";
+		//alert(i);
+		checkboxO.onchange = function(e){
+			var innerCheckbox = e.target;
+			if(innerCheckbox.checked){ //The box has *just* been checked. We need to add the member.
+				addMember(innerCheckbox.id);
+			} else {
+				removeMemberByMemberNum(innerCheckbox.id);
+			}
+			// alert(innerCheckbox.nextSibling);
+			//checkboxChange(innerCheckbox.id);
+		}
+		child.appendChild(checkboxO);
+		child.appendChild(name);
+		child.className = "memberDialogName"; 
+		memberDialog.appendChild(child);
+	}
+}
+
+function checkboxChange(memberNum){
+	addMember(memberNum);
 }
 
 function dateChange()
 {
 	updateGlobalDateObjects();
 	makeTable();
+	numTableMembers = 0;
 	//Need to repopulate member's results.
 }
 
@@ -102,7 +210,7 @@ function makeTable()
 	var currentRow = 1;
 
 	var cell1 = row.insertCell(0);
-	cell1.innerHTML = "Motion/Member:";
+	cell1.innerHTML = "Motion/Member: (Click to remove)";
 	//Now make a new row for each motion:
 	var meetings = xmlDoc.getElementsByTagName("meeting");
 
@@ -133,61 +241,126 @@ function makeTable()
 }
 
 function enablePage(){
-	document.getElementById("addMemberButton").disabled = "";
+	document.getElementById("memberDialogButton").disabled = "";
 	document.getElementById("startDate").disabled = "";
 	document.getElementById("endDate").disabled = "";
 }
 
-function addMember()
+function memberDisplayed(memberNum)
+{
+	var found = $.inArray(memberNum, currentlyDisplayedMembers);
+	if(found >= 0){
+		return true;
+	}
+}
+
+function removeMemberByMemberNum(memberNum)
+{
+	var i;
+	var tableIndex;
+	//First find the table index.
+	for(i = 0; i < currentlyDisplayedMembers.length; i++){
+		if(currentlyDisplayedMembers[i] === memberNum){
+			tableIndex = i+1;
+		}
+	}
+	removeMemberByTableIndex(tableIndex);
+	//Remove member from the currently displayed members list.
+	currentlyDisplayedMembers.splice((tableIndex-1), 1);
+	deCheckMember(memberNum);
+}
+function removeMemberByTableIndex(index)
+{
+	for(var i = 0; i < mainTable.rows.length; i++){
+			mainTable.rows[i].deleteCell(index);
+		 }
+	numTableMembers--;
+}
+function deCheckMember(memberNum){
+	var checkb = document.getElementById(memberNum);
+	checkb.checked = "";
+}
+
+function addMember(memberNum, inChinese)
 {
 
-	var voterSelector = document.getElementById("voterList");
-
-	var meetings = xmlDoc.getElementsByTagName("meeting");
-
-	var memberNameEN = voterSelector.value;
-
-	var memberNameCell = mainTable.rows[0].insertCell(numMembers+1);
-
-	memberNameCell.innerHTML = voterSelector.options[voterSelector.selectedIndex].text;
-
-	var currentMotion = 1;
-
-	for(var i = 0; i < meetings.length; i++)
+	if(!memberDisplayed(memberNum))
 	{
-		var mDate = meetings[i].getAttribute('start-date').split("/");
-		var mDateObj = new Date(mDate[2] + "/" + mDate[1] + "/" + mDate[0]);
+		// var voterSelector = document.getElementById("voterList");
 
-		if(!(startDateObj.getTime() <= mDateObj.getTime() && mDateObj.getTime() <= endDateObj.getTime())) continue;
+		var meetings = xmlDoc.getElementsByTagName("meeting");
 
-		var votes = meetings[i].childNodes;
-		for(var o = 0; o < votes.length; o++){
-			if(votes[o].tagName != "vote") continue;
-
-			//Double check that the motion is correct.
-			if(mainTable.rows[currentMotion].cells[0].innerHTML != votes[o].getElementsByTagName("motion-en")[0].innerHTML){
-				alert("ERROR. Everything is wrong. Disregard all results...");
-			}
-
-			var voteResultCell = mainTable.rows[currentMotion].insertCell(numMembers + 1);
-
-			voteResultCell.innerHTML = "Member not found.";
-
-			var indivVotes = votes[o].getElementsByTagName("individual-votes")[0];
-			var members = indivVotes.getElementsByTagName("member");
-			for(var p = 0; p < members.length; p++)
-			{
-				if(members[p].getAttribute('name-en') == voterSelector.value)
-				{
-					voteResultCell.innerHTML = members[p].getElementsByTagName("vote")[0].innerHTML;
-					break; 
-				}
-			}
+		var memberNameCell = mainTable.rows[0].insertCell(numTableMembers+1);
 
 
-			currentMotion++;
+		// memberNameCell.innerHTML = voterSelector.value;
+		var memberName;
+		if(!inChinese)
+		{
+			memberName = memberListEN[memberNum];
+		} else 
+		{
+			memberName = memberListCN[memberNum];
 		}
+		
 
-	}
-	numMembers++;
+		memberNameCell.innerHTML = memberName;
+		memberNameCell.title = memberNum;
+
+		//To remove a member
+		memberNameCell.onclick = function(e) {
+		 var ind = e.target.cellIndex;
+		 // for(var i = 0; i < mainTable.rows.length; i++){
+			// mainTable.rows[i].deleteCell(ind);
+		 // }
+		 // numTableMembers--;
+		 removeMemberByTableIndex(ind);
+		 deCheckMember(e.target.title);
+		 }; //it hurts my brain a little that this works, but anyway.
+
+		var currentMotion = 1;
+
+		for(var i = 0; i < meetings.length; i++)
+		{
+			var mDate = meetings[i].getAttribute('start-date').split("/");
+			var mDateObj = new Date(mDate[2] + "/" + mDate[1] + "/" + mDate[0]);
+
+			if(!(startDateObj.getTime() <= mDateObj.getTime() && mDateObj.getTime() <= endDateObj.getTime())) continue;
+
+			var votes = meetings[i].childNodes;
+			for(var o = 0; o < votes.length; o++){
+				if(votes[o].tagName != "vote") continue;
+
+				//Double check that the motion is correct.
+				if(mainTable.rows[currentMotion].cells[0].innerHTML != votes[o].getElementsByTagName("motion-en")[0].innerHTML){
+					alert("ERROR. Everything is wrong. Disregard all results...");
+				}
+
+				var voteResultCell = mainTable.rows[currentMotion].insertCell(numTableMembers + 1);
+
+				voteResultCell.innerHTML = "Member not found.";
+
+				var indivVotes = votes[o].getElementsByTagName("individual-votes")[0];
+				var members = indivVotes.getElementsByTagName("member");
+				for(var p = 0; p < members.length; p++)
+				{
+					if(members[p].getAttribute('name-en') == memberName || members[p].getAttribute('name-ch') == memberName)
+					{
+						voteResultCell.innerHTML = members[p].getElementsByTagName("vote")[0].innerHTML;
+						break; 
+					}
+				}
+
+
+				currentMotion++;
+			}
+
+		}
+		var checkb = document.getElementById(memberNum);
+		checkb.checked = "checked";
+		currentlyDisplayedMembers.push(memberNum);
+		numTableMembers++;
+	} else alert("Member already displayed.");
+	
+
 }
