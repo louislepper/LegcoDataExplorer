@@ -13,10 +13,16 @@
 <body onload="startFunction()">
 <div id="controls">
 	<div id="mselector" class="control">
-		<select id="voterList" class="control">
+		<!--<select id="voterList" class="control">
 		  <option value="none">Select voter 1</option>
-		</select>
-		<button id="addMemberButton" type="button" onclick="addMember()" disabled="disabled">Add</button>
+		</select>-->
+
+		<div id="memberSearch" class="ui-widget">
+			<label for="voterList" class="control">Members: </label>
+			<input id="voterList">
+		</div>
+
+		<button id="memberDialogButton" type="button" onclick="memberDialogOpen()" disabled="disabled">Show all.</button>
 	</div>
 	<div id="dates" class="control">
 		<h4>Only show motions between:</h4>
@@ -29,6 +35,9 @@
 			<input type="text" name="endDate" id="endDate" disabled="disabled" onchange="dateChange()">
 		</div>
 	 </div>
+	<div id="memberDialog" title="Select members with checkboxes." hidden="hidden">
+		
+	</div>
 </div>
 <table id="mainTable"></table>
 </body>
