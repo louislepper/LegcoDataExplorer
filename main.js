@@ -85,11 +85,11 @@ function getMembers()
 		}
 	}
 
-	if ( window.console && window.console.log ) {
-		for(i = 0; i < memberCount; i++) {
-			console.log("Member " + (i+1) + ": " + memberListEN[i] + " --- " + memberListCN[i]);
-		}
-	}
+	// if ( window.console && window.console.log ) {
+	// 	for(i = 0; i < memberCount; i++) {
+	// 		console.log("Member " + (i+1) + ": " + memberListEN[i] + " --- " + memberListCN[i]);
+	// 	}
+	// }
 
 }
 
@@ -167,7 +167,7 @@ function populateMemberDialog ()
 			}
 			// alert(innerCheckbox.nextSibling);
 			//checkboxChange(innerCheckbox.id);
-		}
+		};
 		child.appendChild(checkboxO);
 		child.appendChild(name);
 		child.className = "memberDialogName"; 
@@ -182,9 +182,104 @@ function checkboxChange(memberNum){
 function dateChange()
 {
 	updateGlobalDateObjects();
-	makeTable();
-	numTableMembers = 0;
+	rebuildTable();
 	//Need to repopulate member's results.
+}
+
+function rebuildTable(){
+	var i,q,p,o;
+	var newTable = document.createElement("TABLE");
+
+	newTable.id = "mainTable";
+	
+	// Create an empty <tr> element and add it to the 1st position of the table:
+	var row = newTable.insertRow(0);
+	var currentRow = 1;
+
+	var cell1 = row.insertCell(0);
+	cell1.innerHTML = "Motion/Member: (Click to remove)";
+	for(i = 0; i < currentlyDisplayedMembers.length; i++)
+	{
+		var memberNameCell = row.insertCell(i + 1);
+
+		memberNameCell.innerHTML = memberListEN[currentlyDisplayedMembers[i]]; //Breaks bilinguality. TODO:fix.
+		memberNameCell.title = currentlyDisplayedMembers[i];
+
+		//To remove a member
+		memberNameCell.onclick = function(e) {
+		 //This kind of works by a hack. We set the cell's title to its member number.
+		 removeMemberByMemberNum(e.target.title);
+		 }; 
+
+
+	}
+	//Now make a new row for each motion:
+	var meetings = xmlDoc.getElementsByTagName("meeting");
+
+	for(i = 0; i < meetings.length; i++)
+	{
+		var mDate = meetings[i].getAttribute('start-date').split("/");
+		var mDateObj = new Date(mDate[2] + "/" + mDate[1] + "/" + mDate[0]);
+
+		if(!(startDateObj.getTime() <= mDateObj.getTime() && mDateObj.getTime() <= endDateObj.getTime())) continue;
+
+		var votes = meetings[i].childNodes;
+		for(o = 0; o < votes.length; o++)
+		{
+
+			if(votes[o].tagName != "vote") continue; //For some reason there are some text nodes here.
+
+			var newMotionRow = newTable.insertRow(currentRow);
+			var motionNameCell = newMotionRow.insertCell(0);
+			motionNameCell.innerHTML = votes[o].getElementsByTagName("motion-en")[0].innerHTML;
+
+			var indivVotes = votes[o].getElementsByTagName("individual-votes")[0];
+			var members = indivVotes.getElementsByTagName("member");
+
+			for(p = 0; p < currentlyDisplayedMembers.length; p++)
+			{
+				var vote = newMotionRow.insertCell(p+1);
+				vote.innerHTML = "Member not found.";
+
+				// Terribly needless complexity, I know. The programmer should be shot:
+				
+				for(q = 0; q < members.length; q++)
+				{
+					if(members[q].getAttribute('name-en') == memberListEN[i]) //Once again breaks bilinguality. TODO:fix
+					{
+						vote.innerHTML = members[p].getElementsByTagName("vote")[0].innerHTML;
+						break; 
+					}
+				}
+
+
+			}
+			currentRow++;
+		}
+
+		// var vote = mainTable.rows[currentMotion].insertCell(numTableMembers + 1);
+
+		// 		voteResultCell.innerHTML = "Member not found.";
+
+		// 		var indivVotes = votes[o].getElementsByTagName("individual-votes")[0];
+		// 		var members = indivVotes.getElementsByTagName("member");
+		// 		for(var p = 0; p < members.length; p++)
+		// 		{
+		// 			if(members[p].getAttribute('name-en') == memberName || members[p].getAttribute('name-ch') == memberName)
+		// 			{
+		// 				voteResultCell.innerHTML = members[p].getElementsByTagName("vote")[0].innerHTML;
+		// 				break; 
+		// 			}
+		// 		}
+
+	}
+	//Get current table:
+	var oldTable = document.getElementById("mainTable");
+
+	mainTable = newTable;
+
+	//Add the main newTable to the page
+	document.body.replaceChild(newTable, oldTable);
 }
 
 function updateGlobalDateObjects()
@@ -257,25 +352,41 @@ function memberDisplayed(memberNum)
 function removeMemberByMemberNum(memberNum)
 {
 	var i;
-	var tableIndex;
+	var tableIndex = -1;
 	//First find the table index.
-	for(i = 0; i < currentlyDisplayedMembers.length; i++){
-		if(currentlyDisplayedMembers[i] === memberNum){
+	for(i = 0; i < currentlyDisplayedMembers.length; i++)
+	{
+		// alert(currentlyDisplayedMembers[i] + "(from list of memnum) -- (from input)" + memberNum);
+		if(currentlyDisplayedMembers[i] == memberNum)
+		{
+
 			tableIndex = i+1;
+			// alert(tableIndex);
 		}
+	} 
+	if(tableIndex === -1) 
+	{
+			alert("Trying to remove a member that can't be found.");
+			alert(memberNum);
+			alert(memberListEN[memberNum]);
+			alert(currentlyDisplayedMembers);
+
 	}
 	removeMemberByTableIndex(tableIndex);
 	//Remove member from the currently displayed members list.
 	currentlyDisplayedMembers.splice((tableIndex-1), 1);
 	deCheckMember(memberNum);
 }
-function removeMemberByTableIndex(index)
+function removeMemberByTableIndex(index) //Only to be used by removeMemberByMemberNum, because the arrays left must be spiced. 
 {
 	for(var i = 0; i < mainTable.rows.length; i++){
 			mainTable.rows[i].deleteCell(index);
 		 }
 	numTableMembers--;
 }
+
+// function removeMemberFromArrays(memberNu)
+
 function deCheckMember(memberNum){
 	var checkb = document.getElementById(memberNum);
 	checkb.checked = "";
@@ -309,14 +420,9 @@ function addMember(memberNum, inChinese)
 
 		//To remove a member
 		memberNameCell.onclick = function(e) {
-		 var ind = e.target.cellIndex;
-		 // for(var i = 0; i < mainTable.rows.length; i++){
-			// mainTable.rows[i].deleteCell(ind);
-		 // }
-		 // numTableMembers--;
-		 removeMemberByTableIndex(ind);
-		 deCheckMember(e.target.title);
-		 }; //it hurts my brain a little that this works, but anyway.
+		 //This once again works kind of by hack. We just store the member number in the cell's title.
+		 removeMemberByMemberNum(e.target.title);
+		 }; 
 
 		var currentMotion = 1;
 
@@ -361,6 +467,4 @@ function addMember(memberNum, inChinese)
 		currentlyDisplayedMembers.push(memberNum);
 		numTableMembers++;
 	} else alert("Member already displayed.");
-	
-
 }
