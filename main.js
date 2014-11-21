@@ -1,13 +1,18 @@
 //Global variables.
 var xmlDoc; //At the moment this script is limited to a single xml doc.
-var mainTable;
-var numTableMembers = 0;
+var mainTable; //I think I should get rid of this.
+
+var numTableMembers = 0; //Number of members displayed in the table
+
+/* The start and end date for filtering motions. These should always be up to date after startFunction is called. */
 var startDateObj;
 var endDateObj;
-var memberCount = 0;
 
-var currentlyDisplayedMembers = [];
+var xmlMemberCount = 0; //Number of members found in our XML
 
+var currentlyDisplayedMembers = []; //Array containing ids of members (ids are chosen in getMembers(based off the member's position in memberListEN/CN))
+
+/* Lists of all member names (from XML) in English and Chinese */
 var memberListEN = [];
 var memberListCN = [];
 
@@ -81,7 +86,7 @@ function xmlFail()
 function getMembers()
 {
   var i;
-	memberCount = 0;
+	xmlMemberCount = 0;
 	var x=xmlDoc.getElementsByTagName("member");
 
 	var dedupedList = {};
@@ -90,15 +95,15 @@ function getMembers()
 		if (typeof dedupedList[x[i].getAttribute('name-en')] == 'undefined')
 		{
 			dedupedList[x[i].getAttribute('name-en')] = 1;
-			memberListEN[memberCount] = x[i].getAttribute('name-en');
-			memberListCN[memberCount] = x[i].getAttribute('name-ch');
-			memberCount++;
+			memberListEN[xmlMemberCount] = x[i].getAttribute('name-en');
+			memberListCN[xmlMemberCount] = x[i].getAttribute('name-ch');
+			xmlMemberCount++;
 
 		}
 	}
 
 	// if ( window.console && window.console.log ) {
-	// 	for(i = 0; i < memberCount; i++) {
+	// 	for(i = 0; i < xmlMemberCount; i++) {
 	// 		console.log("Member " + (i+1) + ": " + memberListEN[i] + " --- " + memberListCN[i]);
 	// 	}
 	// }
@@ -162,7 +167,7 @@ function nameToNumAndCN(name){
 function populateMemberDialog () 
 {
 	var memberDialog = document.getElementById("memberDialog");
-	for(var i = 0; i < memberCount; i++){
+	for(var i = 0; i < xmlMemberCount; i++){
 		var child = document.createElement("DIV");
 		var checkboxO = document.createElement("INPUT");
 		checkboxO.id = i;
