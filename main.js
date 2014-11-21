@@ -44,6 +44,18 @@ function pullXML()
 				} 
 			};
 
+	xmlhttp.onprogress=function(evt){
+		if (evt.lengthComputable) 
+		   {//evt.loaded the bytes browser receive
+			//evt.total the total bytes seted by the header
+			//
+		     var percentComplete = (evt.loaded / evt.total)*100;  
+		     $('#progressbar').progressbar("value", percentComplete );
+		   } else {
+		   	//alert("indeterminant");
+		   }
+	}
+
 	xmlhttp.open("GET","./combined.xml",true);
 	xmlhttp.send();			
 }
