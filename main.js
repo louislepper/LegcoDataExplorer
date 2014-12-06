@@ -4,8 +4,8 @@ var xmlDoc; //At the moment this script is limited to a single xml doc.
 var numTableMembers = 0; //Number of members displayed in the table
 
 /* The start and end date for filtering motions. These should always be up to date after startFunction is called. */
-var startDateObj;
-var endDateObj;
+//var state.startDateObj;
+//var state.endDateObj;
 
 var xmlMemberCount = 0; //Number of members found in our XML
 
@@ -15,12 +15,130 @@ var currentlyDisplayedMembers = []; //Array containing ids of members (ids are c
 var memberListEN = [];
 var memberListCN = [];
 
+/* State is:
+ *
+ * Start date and end date.
+ * List of members. I'd use member IDs, but, they may not stay the same?
+ * 
+ */
+ var state = {};
+ state.startDateObj = new Date();
+ state.endDateObj = new Date();
+ state.memberList = [];
+
+ var currentVarString = ""; //Everything past the '?' in the URL.
+
+
+
 function startFunction(){
 	pullXML();
 	initCalendar();
 	updateGlobalDateObjects();
+	retrieveStatePreXML();
 }
 
+function retrieveStatePreXML()
+{
+	var i;
+	if(getQueryVariable("startDate") && getQueryVariable("endDate")) {
+		state.startDateObj = getQueryVariable("startDate")? new Date(parseInt(getQueryVariable("startDate"))) : state.startDateObj;
+		state.endDateObj = getQueryVariable("endDate")? new Date(parseInt(getQueryVariable("endDate"))) : state.endDateObj;
+		updateDateboxFromObjects();
+		//Need to retrieve member list here.
+	}
+}
+
+function retrieveStatePostXML()
+{
+	currentVarString = window.location.search.substring(1);
+	if(getQueryVariable("members")) {
+		state.memberList = JSON.parse(decodeURIComponent(getQueryVariable("members")));
+		for(i = 0; i < state.memberList.length; i++) {
+			// if(nameToNumAndCN(state.memberList[i]) != -1) {
+			// 	addMember(nameToNumAndCN(state.memberList[i]), true);
+			// } else if (nameToNumAndEN(state.memberList[i]) != -1) {
+			// 	addMember(nameToNumAndEN(state.memberList[i]), false);
+			// } else {
+			// 	alert(state.memberList[i] + "=" + "invalid member.");
+			// }
+			if(nameToNum(state.memberList[i]) != -1) {
+				currentlyDisplayedMembers.push(nameToNum(state.memberList[i]));
+				checkMember(nameToNum(state.memberList[i]));
+				numTableMembers++;
+			} else {
+				alert(state.memberList[i] + "=" + "invalid member.");
+			}
+		}
+	}
+
+	window.addEventListener("popstate", function(e) {
+    	state.startDateObj = new Date(parseInt(e.state.startDateObj.getTime()));
+		state.endDateObj = new Date(parseInt(e.state.endDateObj.getTime()));
+		updateDateboxFromObjects();
+		rebuildTable();
+	});
+
+}
+
+function updateDateboxFromObjects(){
+	var startDate = document.getElementById("startDate");
+	startDate.value = state.startDateObj.getDate() + "/" + (state.startDateObj.getMonth() + 1) + "/" + state.startDateObj.getFullYear();
+	var endDate = document.getElementById("endDate");
+	endDate.value = state.endDateObj.getDate() + "/" + (state.endDateObj.getMonth() + 1) + "/" + state.endDateObj.getFullYear();
+}
+
+function getQueryVariable(variable)
+{
+       var query = window.location.search.substring(1);
+       var vars = query.split("&");
+       for (var i=0;i<vars.length;i++) {
+               var pair = vars[i].split("=");
+               if(pair[0] == variable){return pair[1];}
+       }
+       return(false);
+}
+
+function changeVarString(variable, newValue)
+{
+	var i;
+	var o;
+	var found = false;
+	var newString = "";
+	var vars = currentVarString.split("&");
+	for(i = 0; i < vars.length; i++) {
+		var pair = vars[i].split("=");
+		if(pair[0] == variable) {
+			found = true;
+			pair[1] = newValue;
+			var depair = pair[0] + "=" + pair[1];
+			for(o = 0; o < vars.length; o++){
+				if(o != 0) newString += "&";
+				if(o == i) { //Don't want to re-add the original one.
+					newString += depair;
+				} else {
+					newString += vars[o];
+				}
+			}
+			break; //Break out of for loop
+		}
+	}
+	if(found == false) {
+		if (currentVarString != "") currentVarString += "&";
+		currentVarString = currentVarString + variable + "=" + newValue;
+	} else {
+		currentVarString = newString;
+	}
+	
+}
+
+function copyState(state)
+{
+	var newState = {};
+	newState.startDateObj = new Date(state.startDateObj.getTime());
+	newState.endDateObj = new Date(state.endDateObj.getTime());
+	//TODO:Copy member list.
+	return newState;
+}
 
 function pullXML()
 {
@@ -75,6 +193,7 @@ function xmlReady()
 	populateSelectBox();
 	populateMemberDialog();
 	//makeTable();
+	retrieveStatePostXML();
 	rebuildTable();
 	enablePage();
 }
@@ -193,9 +312,12 @@ function populateMemberDialog()
 function dateChange()
 {
 	updateGlobalDateObjects();
+	changeVarString("startDate", state.startDateObj.getTime());
+	changeVarString("endDate", state.endDateObj.getTime());
+	history.pushState(copyState(state), "Legco Data Explorer", "?" + currentVarString);
 	rebuildTable();
 }
-
+//Very similar to the add member function. This could probably be cleaned up to avoid duplicate code.
 function rebuildTable(){
 	var i,q,p,o;
 	var newTable = document.createElement("TABLE");
@@ -217,11 +339,7 @@ function rebuildTable(){
 		memberNameCell.innerHTML = memberListEN[currentlyDisplayedMembers[i]]; //Breaks bilinguality. TODO:fix.
 
 		//To remove a member
-		memberNameCell.onclick = function(e) {		 
-			removeMemberByMemberNum(nameToNum(e.target.innerHTML));
-		 }; 
-
-
+		memberNameCell.onclick = onTableMemberNameClick;
 	}
 	//Now make a new row for each motion:
 	var meetings = xmlDoc.getElementsByTagName("meeting");
@@ -232,7 +350,7 @@ function rebuildTable(){
 		var mDate = meetings[i].getAttribute('start-date').split("/");
 		var mDateObj = new Date(mDate[2] + "/" + mDate[1] + "/" + mDate[0]);
 
-		if(!(startDateObj.getTime() <= mDateObj.getTime() && mDateObj.getTime() <= endDateObj.getTime())) continue;
+		if(!(state.startDateObj.getTime() <= mDateObj.getTime() && mDateObj.getTime() <= state.endDateObj.getTime())) continue;
 
 		var votes = meetings[i].childNodes;
 		//For every vote in the meeting.
@@ -284,11 +402,11 @@ function updateGlobalDateObjects()
 {
 	var startDate = document.getElementById("startDate").value.split("/");
 
-	startDateObj = new Date(startDate[2] + "/" + startDate[1] + "/" + startDate[0]);
+	state.startDateObj = new Date(startDate[2] + "/" + startDate[1] + "/" + startDate[0]);
 
 	var endDate = document.getElementById("endDate").value.split("/");
 
-	endDateObj = new Date(endDate[2] + "/" + endDate[1] + "/" + endDate[0]);
+	state.endDateObj = new Date(endDate[2] + "/" + endDate[1] + "/" + endDate[0]);
 }
 
 function enablePage(){
@@ -331,6 +449,24 @@ function removeMemberByMemberNum(memberNum)
 	//Remove member from the currently displayed members list. Must keep the order.
 	currentlyDisplayedMembers.splice((tableIndex-1), 1);
 	deCheckMember(memberNum);
+	if (removeMemberFromStateList(memberListEN[memberNum]) == -1 && removeMemberFromStateList(memberListCN[memberNum]) == -1){
+		alert("Problem removing nonexistent member from state list.");
+	}
+	
+	changeVarString("members", JSON.stringify(state.memberList));
+	history.pushState(copyState(state), "Legco Data Explorer", "?" + currentVarString);
+}
+
+function removeMemberFromStateList(memberName) {
+	var i;
+	for(i = 0; i < state.memberList.length; i++){
+		if(state.memberList[i] == memberName) {
+			break;
+		}
+	}
+	//i is the index of the member
+	if(i < state.memberList.length) {state.memberList.splice(i,1);} else {return -1;}
+	return 0;
 }
 
 function removeMemberByTableIndex(index) //Only to be used by removeMemberByMemberNum, because the arrays left must be spiced. 
@@ -342,11 +478,20 @@ function removeMemberByTableIndex(index) //Only to be used by removeMemberByMemb
 	numTableMembers--;
 }
 
-
 function deCheckMember(memberNum){
 	//The id of each checkbox is the id of its associated member.
 	var checkb = document.getElementById(memberNum);
 	checkb.checked = "";
+}
+
+function checkMember(memberNum){
+	var checkb = document.getElementById(memberNum);
+	checkb.checked = "checked";
+}
+
+function onTableMemberNameClick(e){
+	removeMemberByMemberNum(nameToNum(e.target.innerHTML));
+	
 }
 
 function addMember(memberNum, inChinese)
@@ -370,10 +515,12 @@ function addMember(memberNum, inChinese)
 		
 		memberNameCell.innerHTML = memberName;
 
+		state.memberList.push(memberName);
+		changeVarString("members", JSON.stringify(state.memberList));
+		history.pushState(copyState(state), "Legco Data Explorer", "?" + currentVarString);
+
 		//To remove a member
-		memberNameCell.onclick = function(e) {
-			removeMemberByMemberNum(nameToNum(e.target.innerHTML));
-		}; 
+		memberNameCell.onclick = onTableMemberNameClick;
 
 		var currentMotion = 1;
 
@@ -383,7 +530,7 @@ function addMember(memberNum, inChinese)
 			var mDateObj = new Date(mDate[2] + "/" + mDate[1] + "/" + mDate[0]);
 
 			//There's room for optimisation here. Currently going through *all* motions, and just skipping ones that aren't in the date range.
-			if(!(startDateObj.getTime() <= mDateObj.getTime() && mDateObj.getTime() <= endDateObj.getTime())) continue;
+			if(!(state.startDateObj.getTime() <= mDateObj.getTime() && mDateObj.getTime() <= state.endDateObj.getTime())) continue;
 
 			var votes = meetings[i].childNodes;
 			for(var o = 0; o < votes.length; o++){
