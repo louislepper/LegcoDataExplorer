@@ -24,8 +24,8 @@ state.currentlyDisplayedMembers = []; //Array containing ids of members (ids are
 
 var XMLFiles = [];
 
-var XMLLocation = "http://data.jmsc.hku.hk/hongkong/legco/xml/";
-var xmlFilenameListURL = "http://data.jmsc.hku.hk/hongkong/legco/xml/list";
+var XMLLocation = "../xml/";
+var xmlFilenameListURL = "../xml/list";
 
 var currentVarString = ""; //Everything past the '?' in the URL.
 
