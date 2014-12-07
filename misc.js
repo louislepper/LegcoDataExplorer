@@ -10,10 +10,12 @@ $(function() {
     progressbar.progressbar({
 	value: false,
 	change: function() {
+		var t = document.getElementById("progressbar");
+		t.hidden = ""; //Hacky...
 	progressLabel.text( progressbar.progressbar( "value" ) + "%" );
       },
       complete: function() {
-	progressLabel.text( "Complete!" );
+		progressLabel.text( "Complete!" );
 		//The jquery selector isn't working for me. I probably just don't understand something basic about it.
 		var t = document.getElementById("progressbar");
 		t.hidden = "hidden";

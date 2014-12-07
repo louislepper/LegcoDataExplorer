@@ -142,6 +142,8 @@ function retrieveStatePostXML()
 		state.memberList = e.state.memberList;
 		state.currentlyDisplayedMembers = e.state.currentlyDisplayedMembers;
 
+		reCheckAllMembers();
+
 		rebuildTable(); //In this case we don't need to worry about loading xml, because we've loaded it in the past.
 	});
 
@@ -270,7 +272,9 @@ function xmlListReady()
 
 function waitTillReady(onReady)
 {
-	if(XMLLoaded()){
+	var pComplete = XMLLoaded();
+	$('#progressbar').progressbar("value", (pComplete * 100));
+	if(pComplete == 1.0){
 		onReady();
 	} else {
 		setTimeout(function() {waitTillReady(onReady);}, 10);
@@ -299,22 +303,36 @@ function XMLLoaded() {
 	var endDate = new Date(state.endDateObj.getTime());
 	startDate.setDate(startDate.getDate() - 2);
 	endDate.setDate(endDate.getDate() + 2);
+	var totalFiles = 0;
+	var loadedFiles = 0;
 
 	for(i = 0; i < XMLFiles.length; i++){
 		if(startDate.getTime() <= XMLFiles[i].date.getTime() && XMLFiles[i].date.getTime() <= endDate.getTime()){
-			if(!XMLFiles[i].tryReturnXML()) return false;
+			if(XMLFiles[i].tryReturnXML()) {loadedFiles++;}
+			totalFiles++;
 		}
 	}
-	return true;
+	if(totalFiles == 0 && loadedFiles == 0) {return 1;}
+	return loadedFiles/totalFiles;
+}
+function numFilesLoaded(){
+	var i;
+	var total = 0;
+	for(i = 0; i < XMLFiles.length; i++){
+		if(XMLFiles[i].retrieved) total++;
+	}
+	return total;
 }
 
 function xmlReady() 
 {
-	populateSelectBox();
-	populateMemberDialog();
-	//makeTable();
-	retrieveStatePostXML();
-	rebuildTable();
+	if(numFilesLoaded() > 0) {
+		populateSelectBox();
+		populateMemberDialog();
+		//makeTable();
+		retrieveStatePostXML();
+		rebuildTable();
+	}
 	enablePage();
 }
 
@@ -392,6 +410,11 @@ function nameToNum(name)
 function populateMemberDialog() 
 {
 	var memberDialog = document.getElementById("memberDialog");
+	//var memberDialog = document.createElement("DIV");
+	while (memberDialog.firstChild) {
+    	memberDialog.removeChild(memberDialog.firstChild);
+	}
+
 	for(var i = 0; i < xmlMemberCount; i++){
 		var child = document.createElement("DIV");
 		var checkboxO = document.createElement("INPUT");
@@ -417,6 +440,7 @@ function populateMemberDialog()
 		child.className = "memberDialogName"; 
 		memberDialog.appendChild(child);
 	}
+	//(document.getElementById("memberDialog").parentNode).replaceChild(memberDialog, document.getElementById("memberDialog"));
 }
 
 var turnObjToArray = function(obj) {
@@ -453,7 +477,12 @@ function dateChange()
 	changeVarString("startDate", state.startDateObj.getTime());
 	changeVarString("endDate", state.endDateObj.getTime());
 	history.pushState(copyState(state), "Legco Data Explorer", "?" + currentVarString);
-	waitTillReady(rebuildTable);
+	waitTillReady(function() {
+		populateSelectBox();
+		populateMemberDialog();
+		rebuildTable();
+
+	});
 	//rebuildTable();
 }
 //Very similar to the add member function. This could probably be cleaned up to avoid duplicate code.
@@ -625,6 +654,16 @@ function deCheckMember(memberNum){
 function checkMember(memberNum){
 	var checkb = document.getElementById(memberNum);
 	checkb.checked = "checked";
+}
+
+function reCheckAllMembers(){
+	var i;
+	for(i = 0; i < xmlMemberCount; i++){
+		deCheckMember(i);
+	}
+	for(i = 0; i < state.currentlyDisplayedMembers.length; i++){
+		checkMember(state.currentlyDisplayedMembers[i]);
+	}
 }
 
 function onTableMemberNameClick(e){
