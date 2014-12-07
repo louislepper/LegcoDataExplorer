@@ -1,6 +1,4 @@
 //Global variables.
-var xmlDoc; //At the moment this script is limited to a single xml doc.
-
 var numTableMembers = 0; //Number of members displayed in the table
 
 /* The start and end date for filtering motions. These should always be up to date after startFunction is called. */
@@ -21,17 +19,92 @@ var memberListCN = [];
  * List of members. I'd use member IDs, but, they may not stay the same?
  * 
  */
- var state = {};
- state.startDateObj = new Date();
- state.endDateObj = new Date();
- state.memberList = [];
+var state = {};
+state.startDateObj = new Date();
+state.endDateObj = new Date();
+state.memberList = [];
 
- var currentVarString = ""; //Everything past the '?' in the URL.
+var XMLFiles = [];
 
+var XMLLocation = "http://data.jmsc.hku.hk/hongkong/legco/xml/";
+
+var currentVarString = ""; //Everything past the '?' in the URL.
+
+//This is simply used to avoid putting duplicates in out memberLists. It is used as a hashtable in getMembers()
+var dedupedList = {};
+
+function XMLFile(fileName, date){
+	this.fileName = fileName;
+	this.date = date;
+	this.retrieved = false;
+	this.currentlyRetrieving = false;
+	//Non-blocking
+	this.storeXML = function(){ 
+		if(this.retrieved && !this.currentlyRetrieving) {
+			return;
+		} else {
+			this.currentlyRetrieving = true;
+			var xmlhttp;
+			var currentXMLFile = this;
+
+			if (window.XMLHttpRequest)
+				{// code for IE7+, Firefox, Chrome, Opera, Safari
+					xmlhttp=new XMLHttpRequest();
+				}
+			else
+				{// code for IE6, IE5
+					xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
+				}
+
+				xmlhttp.onreadystatechange=function()
+					{
+						if (xmlhttp.readyState==4)
+						{
+							if(xmlhttp.status==200 || xmlhttp.status==304) {
+								currentXMLFile.xml=xmlhttp.responseXML;
+								getMembers(currentXMLFile.xml);
+								currentXMLFile.retrieved = true;
+							} else {
+								//TODO: I should maybe notify the user here?
+								alert("Fail! Status = " + xmlhttp.status);
+							}
+							currentXMLFile.currentlyRetrieving = false;
+						} 
+					};
+
+			xmlhttp.open("GET",XMLLocation + this.fileName,true);
+			xmlhttp.send();		
+		}
+	};
+	//Blocking function. This seems like a bad idea in javascript.
+	this.returnXML = function(){
+		if(this.retrieved) {
+			return this.xml;
+		} else if (this.currentlyRetrieving) {
+			while(this.currentlyRetrieving);
+			return this.returnXML();
+		} else {
+			this.getXML();
+			return this.returnXML();
+		}
+	};
+	//non-blocking
+	this.tryReturnXML = function(){
+		if(this.retrieved) {
+			return this.xml;
+		} else if (this.currentlyRetrieving) {
+			return false;
+		} else {
+			this.storeXML();
+			return false;
+		}
+	};
+}
 
 
 function startFunction(){
-	pullXML();
+	pullXMLList();
+	// pullXML();
 	initCalendar();
 	updateGlobalDateObjects();
 	retrieveStatePreXML();
@@ -140,10 +213,12 @@ function copyState(state)
 	return newState;
 }
 
-function pullXML()
-{
+function pullXMLList(){
 	var xmlhttp; //I think declaring them here will limit the scope. (I hope?)
-
+	var text;
+	var i;
+	var wholePatt = /cm_vote_[2-3][0-9][0-9][0-9][0-1][0-9][0-3][0-9].xml/g;
+	var datePatt = new RegExp("[2-3][0-9][0-9][0-9][0-1][0-9][0-3][0-9]");
 	if (window.XMLHttpRequest)
 		{// code for IE7+, Firefox, Chrome, Opera, Safari
 			xmlhttp=new XMLHttpRequest();
@@ -158,38 +233,76 @@ function pullXML()
 				if (xmlhttp.readyState==4)
 				{
 					if(xmlhttp.status==200 || xmlhttp.status==304) {
-						xmlDoc=xmlhttp.responseXML;
-						xmlReady();
+						text=xmlhttp.responseText;
+						var lines = text.match(wholePatt);
+						for(i = 0; i < lines.length; i++){
+							var tempDateStr = (datePatt.exec(lines[i]))[0];
+							var newXMLFile = new XMLFile(lines[i], new Date(tempDateStr.substring(0,4) + "/" + tempDateStr.substring(4,6) + "/" + tempDateStr.substring(6,8)));
+							XMLFiles.push(newXMLFile);
+						}
+						xmlListReady();
 					} else {
-						xmlFail();
+						alert("Failed to get the list");
 					}
 				} 
 			};
 
-	xmlhttp.onprogress=function(evt)
-	{
-		if (evt.lengthComputable) 
-		   {//evt.loaded the bytes browser receive
-			//evt.total the total bytes seted by the header
-			//
-			 var percentComplete = (evt.loaded / evt.total)*100;  
-			 $('#progressbar').progressbar("value", percentComplete );
-		   } else {
-			//alert("indeterminant");
-		   }
-	};
-
-	xmlhttp.open("GET","./combined.xml",true);
-	xmlhttp.send();			
+	xmlhttp.open("GET","http://data.jmsc.hku.hk/hongkong/legco/xml/list",true);
+	xmlhttp.send();	
 }
+
 function memberDialogOpen()
 {
 	$( "#memberDialog" ).dialog( "open" );
 }
 
+function xmlListReady() 
+{
+	prepareXML();
+	waitTillReady(xmlReady);
+}
+
+function waitTillReady(onReady)
+{
+	if(XMLLoaded()){
+		onReady();
+	} else {
+		setTimeout(function() {waitTillReady(onReady);}, 10);
+	}
+}
+
+function prepareXML() //Preload all XML files between the current dates.
+{	//Get XML files for two days on either side too. As some xml files can contain meetings for two days.
+	var startDate = new Date(state.startDateObj.getTime());
+	var endDate = new Date(state.endDateObj.getTime());
+	startDate.setDate(startDate.getDate() - 2);
+	endDate.setDate(endDate.getDate() + 2);
+
+	var i;
+	for(i = 0; i < XMLFiles.length; i++){
+		if(startDate.getTime() <= XMLFiles[i].date.getTime() && XMLFiles[i].date.getTime() <= endDate.getTime()){
+			XMLFiles[i].storeXML();
+		}
+	}
+}
+
+function XMLLoaded() {
+	var i;
+	var startDate = new Date(state.startDateObj.getTime());
+	var endDate = new Date(state.endDateObj.getTime());
+	startDate.setDate(startDate.getDate() - 2);
+	endDate.setDate(endDate.getDate() + 2);
+
+	for(i = 0; i < XMLFiles.length; i++){
+		if(startDate.getTime() <= XMLFiles[i].date.getTime() && XMLFiles[i].date.getTime() <= endDate.getTime()){
+			if(!XMLFiles[i].tryReturnXML()) return false;
+		}
+	}
+	return true;
+}
+
 function xmlReady() 
 {
-	getMembers();
 	populateSelectBox();
 	populateMemberDialog();
 	//makeTable();
@@ -203,14 +316,11 @@ function xmlFail()
 	alert("XML not found. Please contact system administrator.");
 }
 
-function getMembers()
+function getMembers(xmlDoc)
 {
 	var i;
-	xmlMemberCount = 0;
+	//xmlMemberCount = 0;
 	var x=xmlDoc.getElementsByTagName("member");
-
-	//This is simply used to avoid putting duplicates in out memberLists. It is used as a hashtable.
-	var dedupedList = {};
 
 	for(i = 0; i < x.length; i++){
 		//If we haven't already put this member's english name in our hashtable. Then we should add both their english and chinese name to our respective lists.
@@ -309,13 +419,42 @@ function populateMemberDialog()
 	}
 }
 
+var turnObjToArray = function(obj) {
+  return [].map.call(obj, function(element) {
+    return element;
+  });
+};
+
+function getMeetings(){
+	var i;
+	var allMeetings = [];
+	var startDate = new Date(state.startDateObj.getTime());
+	var endDate = new Date(state.endDateObj.getTime());
+	startDate.setDate(startDate.getDate() - 2);
+	endDate.setDate(endDate.getDate() + 2);
+
+	for(i = 0; i < XMLFiles.length; i++){
+		if(startDate.getTime() <= XMLFiles[i].date.getTime() && XMLFiles[i].date.getTime() <= endDate.getTime()){
+			var xml = XMLFiles[i].tryReturnXML();
+			if(!xml) {alert("XML should have been pulled by now, but it hasn't been!");} else {
+				var meetings = xml.getElementsByTagName("meeting");
+				var mArr = turnObjToArray(meetings);
+				allMeetings = allMeetings.concat(mArr);
+			}
+		}
+	}
+	return allMeetings;
+}
+
 function dateChange()
 {
 	updateGlobalDateObjects();
+	prepareXML();
 	changeVarString("startDate", state.startDateObj.getTime());
 	changeVarString("endDate", state.endDateObj.getTime());
 	history.pushState(copyState(state), "Legco Data Explorer", "?" + currentVarString);
-	rebuildTable();
+	waitTillReady(rebuildTable);
+	//rebuildTable();
 }
 //Very similar to the add member function. This could probably be cleaned up to avoid duplicate code.
 function rebuildTable(){
@@ -342,7 +481,7 @@ function rebuildTable(){
 		memberNameCell.onclick = onTableMemberNameClick;
 	}
 	//Now make a new row for each motion:
-	var meetings = xmlDoc.getElementsByTagName("meeting");
+	var meetings = getMeetings();
 
 	for(i = 0; i < meetings.length; i++)
 	{
@@ -500,7 +639,7 @@ function addMember(memberNum, inChinese)
 
 	if(!memberDisplayed(memberNum))
 	{
-		var meetings = xmlDoc.getElementsByTagName("meeting");
+		var meetings = getMeetings();
 
 		var memberNameCell = mainTable.rows[0].insertCell(numTableMembers+1);
 

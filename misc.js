@@ -26,13 +26,15 @@ function initCalendar()
 	$( "#startDate" ).datepicker({ dateFormat: "dd/mm/yy" });
 	$( "#endDate" ).datepicker({ dateFormat: "dd/mm/yy" });
 
-	document.getElementById("startDate").value = "01/01/2012";
+	
 
 	var d = new Date();
+	var twoWeeksAgo = new Date();
+	twoWeeksAgo.setDate(twoWeeksAgo.getDate()-14);
 
-	var month = d.getMonth()+1;
-	var day = d.getDate();
+	document.getElementById("startDate").value = (twoWeeksAgo.getDate()<10 ? '0' : '') + twoWeeksAgo.getDate() + '/' + ((twoWeeksAgo.getMonth() + 1)<10 ? '0' : '') + (twoWeeksAgo.getMonth() + 1) + '/' + twoWeeksAgo.getFullYear();
 
-	document.getElementById("endDate").value = (day<10 ? '0' : '') + day + '/' + (month<10 ? '0' : '') + month + '/' + d.getFullYear();
+
+	document.getElementById("endDate").value = (d.getDate()<10 ? '0' : '') + d.getDate() + '/' + ((d.getMonth() + 1)<10 ? '0' : '') + (d.getMonth() + 1) + '/' + d.getFullYear();
 
 }
