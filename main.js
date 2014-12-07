@@ -480,6 +480,7 @@ function dateChange()
 	waitTillReady(function() {
 		populateSelectBox();
 		populateMemberDialog();
+		reCheckAllMembers();
 		rebuildTable();
 
 	});
@@ -739,8 +740,7 @@ function addMember(memberNum, inChinese)
 
 		}
 
-		var checkb = document.getElementById(memberNum);
-		checkb.checked = "checked";
+		checkMember(memberNum);
 
 		
 	} else alert("Member already displayed.");
