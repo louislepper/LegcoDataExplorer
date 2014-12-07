@@ -9,6 +9,18 @@
     text-shadow: 1px 1px 0 #fff;
   }
 
+.NoVote {
+	background-color: rgb(255, 170, 170);
+}
+.YesVote {
+	background-color: rgb(170, 255, 170);
+}
+.AbstainVote {
+	background-color: rgb(170, 170, 170);
+}
+.AbsentVote {
+	background-color: rgb(170, 170, 255);
+}
 
 #controls {
 /*float:top;*/

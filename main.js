@@ -548,9 +548,10 @@ function rebuildTable(){
 					/* It seems that members tend to be in the same order, but if someone leaves, or someone's name changes
 					 * then we can't rely on that, so I do a linear search for the name. If these values are sorted (I haven't checked)
 					 * then we could optimise this */
-					if(members[q].getAttribute('name-en') == memberListEN[state.currentlyDisplayedMembers[p]]) //Once again breaks bilinguality. TODO:fix
+					if(members[q].getAttribute('name-en') == memberListEN[state.currentlyDisplayedMembers[p]] || members[q].getAttribute('name-ch') == memberListCN[state.currentlyDisplayedMembers[p]]) //Once again breaks bilinguality. TODO:fix
 					{
 						vote.innerHTML = members[q].getElementsByTagName("vote")[0].innerHTML;
+						colourResultCell(vote);
 						break; 
 					}
 				}
@@ -565,6 +566,25 @@ function rebuildTable(){
 
 	//Add the main newTable to the page
 	document.body.replaceChild(newTable, oldTable);
+}
+
+function colourResultCell(cell){
+	switch(cell.innerHTML) {
+		case "Yes":
+			cell.className += " YesVote";
+		break;
+		case "No":
+			cell.className += " NoVote";
+		break;
+		case "Abstain":
+			cell.className += " AbstainVote";
+		break;
+		case "Absent":
+			cell.className += " AbsentVote";
+		break;
+		default:
+		break;
+	}
 }
 
 function updateGlobalDateObjects()
@@ -674,7 +694,7 @@ function onTableMemberNameClick(e){
 function addMember(memberNum, inChinese)
 {
 	var mainTable = document.getElementById("mainTable");
-
+	var i;
 	if(!memberDisplayed(memberNum))
 	{
 		var meetings = getMeetings();
@@ -702,7 +722,7 @@ function addMember(memberNum, inChinese)
 
 		var currentMotion = 1;
 
-		for(var i = 0; i < meetings.length; i++)
+		for(i = 0; i < meetings.length; i++)
 		{
 			var mDate = meetings[i].getAttribute('start-date').split("/");
 			var mDateObj = new Date(mDate[2] + "/" + mDate[1] + "/" + mDate[0]);
@@ -730,6 +750,7 @@ function addMember(memberNum, inChinese)
 					if(members[p].getAttribute('name-en') == memberName || members[p].getAttribute('name-ch') == memberName)
 					{
 						voteResultCell.innerHTML = members[p].getElementsByTagName("vote")[0].innerHTML;
+						colourResultCell(voteResultCell);
 						break; 
 					}
 				}
