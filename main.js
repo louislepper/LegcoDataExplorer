@@ -1,13 +1,10 @@
 //Global variables.
-var numTableMembers = 0; //Number of members displayed in the table
 
-/* The start and end date for filtering motions. These should always be up to date after startFunction is called. */
-//var state.startDateObj;
-//var state.endDateObj;
 
 var xmlMemberCount = 0; //Number of members found in our XML
 
-var currentlyDisplayedMembers = []; //Array containing ids of members (ids are chosen in getMembers(based off the member's position in memberListEN/CN))
+//This is simply used to avoid putting duplicates in out memberLists. It is used as a hashtable in getMembers()
+var dedupedList = {};
 
 /* Lists of all member names (from XML) in English and Chinese */
 var memberListEN = [];
@@ -16,23 +13,24 @@ var memberListCN = [];
 /* State is:
  *
  * Start date and end date.
- * List of members. I'd use member IDs, but, they may not stay the same?
+ * List of members. I'd use member IDs, but, they may not stay the same.
  * 
  */
 var state = {};
 state.startDateObj = new Date();
 state.endDateObj = new Date();
-state.memberList = [];
+state.memberList = []; //This is the list of members in the URL. Not a list of all members in the XML...
+state.currentlyDisplayedMembers = []; //Array containing ids of members (ids are chosen in getMembers(based off the member's position in memberListEN/CN))
 
 var XMLFiles = [];
 
 var XMLLocation = "http://data.jmsc.hku.hk/hongkong/legco/xml/";
+var xmlFilenameListURL = "http://data.jmsc.hku.hk/hongkong/legco/xml/list";
 
 var currentVarString = ""; //Everything past the '?' in the URL.
 
-//This is simply used to avoid putting duplicates in out memberLists. It is used as a hashtable in getMembers()
-var dedupedList = {};
 
+//Contains information about an XML file.
 function XMLFile(fileName, date){
 	this.fileName = fileName;
 	this.date = date;
@@ -104,12 +102,12 @@ function XMLFile(fileName, date){
 
 function startFunction(){
 	pullXMLList();
-	// pullXML();
 	initCalendar();
 	updateGlobalDateObjects();
 	retrieveStatePreXML();
 }
 
+//Retrieve state before XML has loaded. At the moment just load the current date from the URL.
 function retrieveStatePreXML()
 {
 	var i;
@@ -117,27 +115,19 @@ function retrieveStatePreXML()
 		state.startDateObj = getQueryVariable("startDate")? new Date(parseInt(getQueryVariable("startDate"))) : state.startDateObj;
 		state.endDateObj = getQueryVariable("endDate")? new Date(parseInt(getQueryVariable("endDate"))) : state.endDateObj;
 		updateDateboxFromObjects();
-		//Need to retrieve member list here.
 	}
 }
 
+//Retrieve state after XML has loaded. In this case just after *some* xml has loaded. 
 function retrieveStatePostXML()
 {
 	currentVarString = window.location.search.substring(1);
 	if(getQueryVariable("members")) {
 		state.memberList = JSON.parse(decodeURIComponent(getQueryVariable("members")));
 		for(i = 0; i < state.memberList.length; i++) {
-			// if(nameToNumAndCN(state.memberList[i]) != -1) {
-			// 	addMember(nameToNumAndCN(state.memberList[i]), true);
-			// } else if (nameToNumAndEN(state.memberList[i]) != -1) {
-			// 	addMember(nameToNumAndEN(state.memberList[i]), false);
-			// } else {
-			// 	alert(state.memberList[i] + "=" + "invalid member.");
-			// }
 			if(nameToNum(state.memberList[i]) != -1) {
-				currentlyDisplayedMembers.push(nameToNum(state.memberList[i]));
+				state.currentlyDisplayedMembers.push(nameToNum(state.memberList[i]));
 				checkMember(nameToNum(state.memberList[i]));
-				numTableMembers++;
 			} else {
 				alert(state.memberList[i] + "=" + "invalid member.");
 			}
@@ -148,8 +138,14 @@ function retrieveStatePostXML()
     	state.startDateObj = new Date(parseInt(e.state.startDateObj.getTime()));
 		state.endDateObj = new Date(parseInt(e.state.endDateObj.getTime()));
 		updateDateboxFromObjects();
-		rebuildTable();
+		
+		state.memberList = e.state.memberList;
+		state.currentlyDisplayedMembers = e.state.currentlyDisplayedMembers;
+
+		rebuildTable(); //In this case we don't need to worry about loading xml, because we've loaded it in the past.
 	});
+
+	history.pushState(copyState(state), "Legco Data Explorer", "?" + currentVarString);
 
 }
 
@@ -160,6 +156,7 @@ function updateDateboxFromObjects(){
 	endDate.value = state.endDateObj.getDate() + "/" + (state.endDateObj.getMonth() + 1) + "/" + state.endDateObj.getFullYear();
 }
 
+//Simply taken from: http://css-tricks.com/snippets/javascript/get-url-variables/
 function getQueryVariable(variable)
 {
        var query = window.location.search.substring(1);
@@ -171,6 +168,7 @@ function getQueryVariable(variable)
        return(false);
 }
 
+//I made this one. It doesn't change the URL, it just changes our global variable 'currentVarString'
 function changeVarString(variable, newValue)
 {
 	var i;
@@ -206,10 +204,18 @@ function changeVarString(variable, newValue)
 
 function copyState(state)
 {
+	var i;
 	var newState = {};
 	newState.startDateObj = new Date(state.startDateObj.getTime());
 	newState.endDateObj = new Date(state.endDateObj.getTime());
-	//TODO:Copy member list.
+	newState.memberList = [];
+	newState.currentlyDisplayedMembers = [];
+	for(i = 0; i < state.memberList.length; i++) {
+		newState.memberList.push(state.memberList[i]);
+	}
+	for(i = 0; i < state.currentlyDisplayedMembers.length; i++) {
+		newState.currentlyDisplayedMembers.push(state.currentlyDisplayedMembers[i]);
+	}
 	return newState;
 }
 
@@ -247,7 +253,7 @@ function pullXMLList(){
 				} 
 			};
 
-	xmlhttp.open("GET","http://data.jmsc.hku.hk/hongkong/legco/xml/list",true);
+	xmlhttp.open("GET",xmlFilenameListURL,true);
 	xmlhttp.send();	
 }
 
@@ -259,7 +265,7 @@ function memberDialogOpen()
 function xmlListReady() 
 {
 	prepareXML();
-	waitTillReady(xmlReady);
+	waitTillReady(xmlReady); //Call the xmlReady function once the required XML has been loaded.
 }
 
 function waitTillReady(onReady)
@@ -286,6 +292,7 @@ function prepareXML() //Preload all XML files between the current dates.
 	}
 }
 
+//Check to see if the required XML has been loaded.
 function XMLLoaded() {
 	var i;
 	var startDate = new Date(state.startDateObj.getTime());
@@ -311,15 +318,9 @@ function xmlReady()
 	enablePage();
 }
 
-function xmlFail()
-{
-	alert("XML not found. Please contact system administrator.");
-}
-
 function getMembers(xmlDoc)
 {
 	var i;
-	//xmlMemberCount = 0;
 	var x=xmlDoc.getElementsByTagName("member");
 
 	for(i = 0; i < x.length; i++){
@@ -361,7 +362,6 @@ function populateSelectBox()
 	});
 
 }
-
 /* Return the id number of a member, if their name is English. If it's not then return -1 */
 function nameToNumAndEN(name)
 {
@@ -471,11 +471,11 @@ function rebuildTable(){
 	cell1.innerHTML = "Motion/Member: (Click to remove)";
 
 	//Put all the members that were recently displayed back into the table
-	for(i = 0; i < currentlyDisplayedMembers.length; i++)
+	for(i = 0; i < state.currentlyDisplayedMembers.length; i++)
 	{
 		var memberNameCell = row.insertCell(i + 1);
 
-		memberNameCell.innerHTML = memberListEN[currentlyDisplayedMembers[i]]; //Breaks bilinguality. TODO:fix.
+		memberNameCell.innerHTML = memberListEN[state.currentlyDisplayedMembers[i]]; //Breaks bilinguality. TODO:fix.
 
 		//To remove a member
 		memberNameCell.onclick = onTableMemberNameClick;
@@ -506,7 +506,7 @@ function rebuildTable(){
 			var indivVotes = votes[o].getElementsByTagName("individual-votes")[0];
 			var members = indivVotes.getElementsByTagName("member");
 
-			for(p = 0; p < currentlyDisplayedMembers.length; p++)
+			for(p = 0; p < state.currentlyDisplayedMembers.length; p++)
 			{
 				var vote = newMotionRow.insertCell(p+1);
 				vote.innerHTML = "Member not found.";
@@ -518,7 +518,7 @@ function rebuildTable(){
 					/* It seems that members tend to be in the same order, but if someone leaves, or someone's name changes
 					 * then we can't rely on that, so I do a linear search for the name. If these values are sorted (I haven't checked)
 					 * then we could optimise this */
-					if(members[q].getAttribute('name-en') == memberListEN[currentlyDisplayedMembers[p]]) //Once again breaks bilinguality. TODO:fix
+					if(members[q].getAttribute('name-en') == memberListEN[state.currentlyDisplayedMembers[p]]) //Once again breaks bilinguality. TODO:fix
 					{
 						vote.innerHTML = members[q].getElementsByTagName("vote")[0].innerHTML;
 						break; 
@@ -557,7 +557,7 @@ function enablePage(){
 function memberDisplayed(memberNum)
 {
 	//Jquery shortcut
-	var found = $.inArray(memberNum, currentlyDisplayedMembers);
+	var found = $.inArray(memberNum, state.currentlyDisplayedMembers);
 	if(found >= 0){
 		return true;
 	}
@@ -567,10 +567,10 @@ function removeMemberByMemberNum(memberNum)
 {
 	var i;
 	var tableIndex = -1;
-	//First find the table index. The table index of a member will always be their position in currentlyDisplayedMembers + 1.
-	for(i = 0; i < currentlyDisplayedMembers.length; i++)
+	//First find the table index. The table index of a member will always be their position in state.currentlyDisplayedMembers + 1.
+	for(i = 0; i < state.currentlyDisplayedMembers.length; i++)
 	{
-		if(currentlyDisplayedMembers[i] == memberNum)
+		if(state.currentlyDisplayedMembers[i] == memberNum)
 		{
 			tableIndex = i+1;
 		}
@@ -581,12 +581,12 @@ function removeMemberByMemberNum(memberNum)
 			alert("Trying to remove a member that can't be found.");
 			alert(memberNum);
 			alert(memberListEN[memberNum]);
-			alert(currentlyDisplayedMembers);
+			alert(state.currentlyDisplayedMembers);
 	}
 
 	removeMemberByTableIndex(tableIndex);
 	//Remove member from the currently displayed members list. Must keep the order.
-	currentlyDisplayedMembers.splice((tableIndex-1), 1);
+	state.currentlyDisplayedMembers.splice((tableIndex-1), 1);
 	deCheckMember(memberNum);
 	if (removeMemberFromStateList(memberListEN[memberNum]) == -1 && removeMemberFromStateList(memberListCN[memberNum]) == -1){
 		alert("Problem removing nonexistent member from state list.");
@@ -614,7 +614,6 @@ function removeMemberByTableIndex(index) //Only to be used by removeMemberByMemb
 	for(var i = 0; i < mainTable.rows.length; i++){
 			mainTable.rows[i].deleteCell(index);
 		 }
-	numTableMembers--;
 }
 
 function deCheckMember(memberNum){
@@ -630,7 +629,6 @@ function checkMember(memberNum){
 
 function onTableMemberNameClick(e){
 	removeMemberByMemberNum(nameToNum(e.target.innerHTML));
-	
 }
 
 function addMember(memberNum, inChinese)
@@ -641,7 +639,7 @@ function addMember(memberNum, inChinese)
 	{
 		var meetings = getMeetings();
 
-		var memberNameCell = mainTable.rows[0].insertCell(numTableMembers+1);
+		var memberNameCell = mainTable.rows[0].insertCell(state.currentlyDisplayedMembers.length+1);
 
 		var memberName;
 		if(!inChinese)
@@ -655,6 +653,7 @@ function addMember(memberNum, inChinese)
 		memberNameCell.innerHTML = memberName;
 
 		state.memberList.push(memberName);
+		state.currentlyDisplayedMembers.push(memberNum);
 		changeVarString("members", JSON.stringify(state.memberList));
 		history.pushState(copyState(state), "Legco Data Explorer", "?" + currentVarString);
 
@@ -680,7 +679,7 @@ function addMember(memberNum, inChinese)
 					alert("ERROR. Everything is wrong. Disregard all results...");
 				}
 
-				var voteResultCell = mainTable.rows[currentMotion].insertCell(numTableMembers + 1);
+				var voteResultCell = mainTable.rows[currentMotion].insertCell(state.currentlyDisplayedMembers.length);
 
 				voteResultCell.innerHTML = "Member not found.";
 
@@ -703,8 +702,7 @@ function addMember(memberNum, inChinese)
 
 		var checkb = document.getElementById(memberNum);
 		checkb.checked = "checked";
-		currentlyDisplayedMembers.push(memberNum);
-		numTableMembers++;
+
 		
 	} else alert("Member already displayed.");
 }
